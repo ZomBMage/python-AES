@@ -6,7 +6,8 @@ inpString_Bytes = [hex(ord(i)) for i in inpString]
 #keyString_Bytes = ["0x2b", "0x7e", "0x15", "0x16", "0x28", "0xae", "0xd2", "0xa6", "0xab", "0xf7", "0x15", "0x88", "0x09", "0xcf", "0x4f", "0x3c"]
 #print(keyString,keyString_Bytes)
 #print(inpString,inpString_Bytes)
-
+def print2(string):
+    print(string,end="\n\n")
 class fbfMatrix(object):
     def __init__(self, array):
         self.matrix = [["","","",""],["","","",""],["","","",""],["","","",""]]
@@ -78,9 +79,10 @@ def rc(i):
 def rcon(i):
     return [rc(i),0x0,0x0,0x0]
 first_RoundKey = fbfMatrix(keyString_Bytes)
+state_Matrix = fbfMatrix(inpString_Bytes)
 def generate_round_keys(initial):
     s_box = forwardsbox()
-    roundKeys = initial.matrix.copy()
+    roundKeys = [initial.matrix.copy()]
     for i in range(10):
         gw3 = shift(3, initial.matrix[3])
         for j in range(len(gw3)):
@@ -107,4 +109,73 @@ def generate_round_keys(initial):
         initial = fbfMatrix(newKey)
     return roundKeys
 roundKeys = generate_round_keys(first_RoundKey)
-print(roundKeys)
+
+for i in range(4):
+    for j in range(4):
+        state_Matrix.matrix[i][j] = xor(state_Matrix.matrix[i][j],roundKeys[0][i][j])
+for i in range(9):
+    # subbytes
+    s_box = forwardsbox()
+    for j in range(4):
+        for k in range(4):
+            state_Matrix.matrix[j][k] = s_box.substitute(state_Matrix.matrix[j][k])
+    # shiftrows
+    rows = []
+    for k in range(4):
+        temp = []
+        for l in range(4):
+            temp.append(state_Matrix.matrix[l][k])
+        rows.append(temp)
+    for j in range(4,0):
+        rows[4-j] = shift(j, rows[4-j])
+    rows[1] = shift(3,rows[1])
+    rows[2] = shift(2,rows[2])
+    rows[3] = shift(1,rows[3])
+    reverted = [[],[],[],[]]
+    for j in range(4):
+        reverted[0].append(rows[j][0])
+        reverted[1].append(rows[j][1])
+        reverted[2].append(rows[j][2])
+        reverted[3].append(rows[j][3])
+    state_Matrix.matrix = reverted.copy()
+    del reverted,rows,temp
+    print2(state_Matrix.matrix)
+    # mixcolumn
+    fixedMatrix = [[2,3,1,1],
+                   [1,2,3,1],
+                   [1,1,2,3],
+                   [3,1,1,2]]
+    newMatrix = [[0]*4]*4
+    for i1 in range(4):
+        for i2 in range(4):
+            temp = []
+            for i3 in range(4):
+                first = fixedMatrix[i1][i3]
+                second = state_Matrix.matrix[i1][i3]
+                if first == 3:
+                    if str(bin(int(one,base=16)))[2] == "1" and len(str(bin(int(one,base=16)))) == 8:
+                        one = bin(
+                            int(
+                                xor(second,
+                                    xor(int(second,base=16) << 1, 0b11011)
+                                    )
+                                ,base=16)
+                            )[-8:]
+                    else:
+                        one = bin(int(xor(second, int(second,base=16) << 1),base=16))[-8:]
+                    if one[0] == "b":
+                        one = "0"+one[1:]
+                    one = hex(int("0b"+one,base=2))
+                else:
+                    one = hex(int(second,base=16) * first)
+                #print(one)
+                temp.append(one)
+            cumulative = 0
+            print(temp)
+            for i in temp:
+                #print(i)
+                cumulative = xor(cumulative, i)
+            print(cumulative)
+            newMatrix[i1][i2] = cumulative
+    print(newMatrix)
+    exit()
