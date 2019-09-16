@@ -109,11 +109,10 @@ def generate_round_keys(initial):
         initial = fbfMatrix(newKey)
     return roundKeys
 roundKeys = generate_round_keys(first_RoundKey)
-
 for i in range(4):
     for j in range(4):
         state_Matrix.matrix[i][j] = xor(state_Matrix.matrix[i][j],roundKeys[0][i][j])
-for i in range(9):
+for a in range(10):
     # subbytes
     s_box = forwardsbox()
     for j in range(4):
@@ -121,6 +120,7 @@ for i in range(9):
             state_Matrix.matrix[j][k] = s_box.substitute(state_Matrix.matrix[j][k])
     # shiftrows
     rows = []
+    if a != 0: state_Matrix.matrix = list(zip(*state_Matrix.matrix))
     for k in range(4):
         temp = []
         for l in range(4):
@@ -139,43 +139,50 @@ for i in range(9):
         reverted[3].append(rows[j][3])
     state_Matrix.matrix = reverted.copy()
     del reverted,rows,temp
-    print2(state_Matrix.matrix)
+    if a == 9:
+        state_Matrix.matrix = list(zip(*state_Matrix.matrix))
+        for row in range(4):
+            state_Matrix.matrix[row] = list(state_Matrix.matrix[row])
     # mixcolumn
-    fixedMatrix = [[2,3,1,1],
-                   [1,2,3,1],
-                   [1,1,2,3],
-                   [3,1,1,2]]
-    newMatrix = [[0]*4]*4
-    for i1 in range(4):
-        for i2 in range(4):
-            temp = []
-            for i3 in range(4):
-                first = fixedMatrix[i1][i3]
-                second = state_Matrix.matrix[i1][i3]
-                if first == 3:
-                    if str(bin(int(one,base=16)))[2] == "1" and len(str(bin(int(one,base=16)))) == 8:
-                        one = bin(
-                            int(
-                                xor(second,
-                                    xor(int(second,base=16) << 1, 0b11011)
-                                    )
-                                ,base=16)
-                            )[-8:]
-                    else:
-                        one = bin(int(xor(second, int(second,base=16) << 1),base=16))[-8:]
-                    if one[0] == "b":
-                        one = "0"+one[1:]
-                    one = hex(int("0b"+one,base=2))
-                else:
-                    one = hex(int(second,base=16) * first)
-                #print(one)
-                temp.append(one)
-            cumulative = 0
-            print(temp)
-            for i in temp:
-                #print(i)
-                cumulative = xor(cumulative, i)
-            print(cumulative)
-            newMatrix[i1][i2] = cumulative
-    print(newMatrix)
-    exit()
+    if a != 9: # No MixColumns on final step
+        fixedMatrix = [[2,3,1,1],
+                       [1,2,3,1],
+                       [1,1,2,3],
+                       [3,1,1,2]]
+        newMatrix = [[0 for j in range(4)] for i in range(4)]
+        for row in range(4):
+            for column in range(4):
+                temp = []
+                for i in range(4):
+                    first = fixedMatrix[row][i]
+                    second = int(state_Matrix.matrix[column][i],base=16)
+                    if first == 3:
+                        t = 0
+                        if second >= 128:
+                            t = xor(((second << 1) % 256), "0x1b")
+                        else:
+                            t = hex((second << 1 % 256))
+                        temp.append(xor(t, second))
+                    elif first == 2:
+                        if second >= 128:
+                            temp.append(xor(((second << 1) % 256), "0x1b"))
+                        else:
+                            temp.append(hex((second << 1 % 256)))
+                    elif first == 1:
+                        temp.append(second)
+                c = 0
+                for i in temp:
+                    c = hex(int(xor(c,i),base=16) % 256)
+                #c = sum(map(lambda x: int(x,base=16),temp)) % 256
+                newMatrix[row][column] = c
+        state_Matrix.matrix = newMatrix
+    #add roundkey
+    for row in range(4):
+        for column in range(4):
+            state_Matrix.matrix[row][column] = xor(state_Matrix.matrix[row][column], roundKeys[a+1][column][row])
+state_Matrix.matrix = list(zip(*state_Matrix.matrix))
+
+serialized = " ".join(" ".join(row) for row in state_Matrix.matrix)
+print(serialized)
+raw = "".join([chr(int(i,base=16)) for i in serialized.split(" ")])
+print(raw)
